@@ -1,5 +1,6 @@
 
 import { toast } from '@/components/ui/sonner';
+import OpenAI from 'openai';
 
 // This interface represents the structure of the notes we expect from OpenAI
 interface NoteData {
@@ -13,70 +14,169 @@ interface NoteData {
   summaryPoints: string[];
 }
 
-// Mock function to simulate OpenAI processing
-// In a real implementation, this would call the OpenAI API
+// Initialize OpenAI client with API key
+// NOTE: In a production app, this should be stored in environment variables
+let openai: OpenAI;
+
+// Helper function to extract audio from video
+const extractAudioFromVideo = async (videoFile: File): Promise<Blob> => {
+  // Create an offscreen HTML5 video element
+  const video = document.createElement('video');
+  const videoUrl = URL.createObjectURL(videoFile);
+  video.src = videoUrl;
+  
+  return new Promise((resolve, reject) => {
+    video.onloadedmetadata = async () => {
+      try {
+        // Create an audio context
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const mediaStreamSource = audioContext.createMediaElementSource(video);
+        const mediaStreamDestination = audioContext.createMediaStreamDestination();
+        mediaStreamSource.connect(mediaStreamDestination);
+        
+        // Create a media recorder to capture the audio
+        const mediaRecorder = new MediaRecorder(mediaStreamDestination.stream);
+        const audioChunks: BlobPart[] = [];
+        
+        mediaRecorder.ondataavailable = (event) => {
+          audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          resolve(audioBlob);
+          URL.revokeObjectURL(videoUrl);
+        };
+        
+        // Play the video to extract audio (muted to avoid playback sound)
+        video.muted = true;
+        mediaRecorder.start();
+        await video.play();
+        
+        // Record for the duration of the video or max 3 minutes for large videos
+        setTimeout(() => {
+          video.pause();
+          mediaRecorder.stop();
+        }, Math.min(video.duration * 1000, 180000)); // 3 minutes max
+      } catch (error) {
+        console.error('Error extracting audio:', error);
+        reject(error);
+      }
+    };
+    
+    video.onerror = (error) => {
+      console.error('Error loading video:', error);
+      reject(error);
+    };
+  });
+};
+
+// Function to transcribe audio using OpenAI
+const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
+  const formData = new FormData();
+  formData.append('file', audioBlob, 'audio.webm');
+  formData.append('model', 'whisper-1');
+  
+  try {
+    const response = await openai.audio.transcriptions.create({
+      file: audioBlob as any as File,
+      model: 'whisper-1',
+    });
+    
+    return response.text;
+  } catch (error) {
+    console.error('Error transcribing audio:', error);
+    throw new Error('Failed to transcribe audio content');
+  }
+};
+
+// Function to generate notes from transcript using OpenAI
+const generateNotesFromTranscript = async (transcript: string): Promise<NoteData> => {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a professional note-taking assistant. 
+          Based on the provided transcript from a video, create comprehensive and well-structured notes. 
+          Your response MUST follow this exact JSON format:
+          {
+            "title": "A clear, concise title for the overall content",
+            "content": "A one-paragraph summary of the entire video content",
+            "sections": [
+              {
+                "title": "Section title",
+                "content": "Detailed content with key points in well-formatted text",
+                "timestamp": "HH:MM:SS format timestamp (approximate based on content position in transcript)"
+              }
+            ],
+            "summaryPoints": [
+              "Key point 1",
+              "Key point 2",
+              "Key point 3",
+              "Key point 4",
+              "Key point 5"
+            ]
+          }
+          Create 4-6 meaningful sections. Format the content of each section with proper paragraphs, bullet points, and emphasis where appropriate.`
+        },
+        {
+          role: 'user',
+          content: `Here is the transcript from a video: ${transcript}`
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+
+    const content = completion.choices[0].message.content;
+    if (!content) {
+      throw new Error('No content in response');
+    }
+    
+    return JSON.parse(content) as NoteData;
+  } catch (error) {
+    console.error('Error generating notes:', error);
+    throw new Error('Failed to generate notes from transcript');
+  }
+};
+
+// Main function to process video with OpenAI
 export const processVideoWithOpenAI = async (
   videoFile: File, 
+  apiKey: string,
   progressCallback: (progress: number, stage: string) => void
 ): Promise<NoteData> => {
   try {
-    // Simulating the processing stages with delays
+    // Initialize OpenAI client with provided API key
+    openai = new OpenAI({
+      apiKey: apiKey,
+      dangerouslyAllowBrowser: true // Note: In production, API calls should be made from a backend
+    });
+    
+    // Stage 1: Preparing video
     progressCallback(10, "Preparing video for analysis");
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     
-    progressCallback(30, "Extracting audio and transcribing");
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Stage 2: Extracting audio
+    progressCallback(25, "Extracting audio from video");
+    const audioBlob = await extractAudioFromVideo(videoFile);
     
-    progressCallback(50, "Analyzing content");
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Stage 3: Transcribing content
+    progressCallback(40, "Transcribing audio content");
+    const transcript = await transcribeAudio(audioBlob);
     
-    progressCallback(75, "Generating structured notes");
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Stage 4: Analyzing content
+    progressCallback(60, "Analyzing content and generating notes");
+    const notes = await generateNotesFromTranscript(transcript);
     
-    progressCallback(90, "Finalizing and formatting");
+    // Stage 5: Finalizing
+    progressCallback(90, "Finalizing and formatting notes");
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     progressCallback(100, "Complete!");
     
-    // Mocked response - in a real implementation, this would come from OpenAI
-    return {
-      title: "Understanding Machine Learning Fundamentals",
-      content: "This comprehensive overview covers the core concepts of machine learning, including supervised and unsupervised learning approaches, common algorithms, and practical applications in today's technology landscape.",
-      sections: [
-        {
-          title: "Introduction to Machine Learning",
-          content: "Machine learning is a subset of artificial intelligence that focuses on building systems that can learn from and make decisions based on data. Unlike traditional programming where rules are explicitly coded, machine learning algorithms improve through experience and by using data.",
-          timestamp: "00:01:15"
-        },
-        {
-          title: "Supervised Learning",
-          content: "Supervised learning involves training a model on labeled data. The algorithm learns to map inputs to outputs based on example input-output pairs. Common applications include classification (like spam detection) and regression (predicting continuous values).\n\nKey algorithms include:\n- Linear Regression\n- Logistic Regression\n- Decision Trees\n- Support Vector Machines\n- Neural Networks",
-          timestamp: "00:04:32"
-        },
-        {
-          title: "Unsupervised Learning",
-          content: "Unsupervised learning works with unlabeled data to find patterns or intrinsic structures. These algorithms explore data to find natural groupings without predefined labels.\n\nCommon techniques include:\n- Clustering (K-means, hierarchical)\n- Dimensionality reduction (PCA)\n- Anomaly detection",
-          timestamp: "00:12:18"
-        },
-        {
-          title: "Practical Applications",
-          content: "Machine learning powers many modern technologies and services:\n\n- Recommendation systems (Netflix, Amazon)\n- Virtual assistants (Siri, Alexa)\n- Fraud detection in financial services\n- Medical diagnosis and healthcare\n- Autonomous vehicles\n- Natural language processing applications",
-          timestamp: "00:18:45"
-        },
-        {
-          title: "Future Directions and Challenges",
-          content: "The field continues to evolve with challenges around ethics, bias, interpretability, and computational requirements. Emerging areas include federated learning, reinforcement learning applications, and more efficient neural network architectures.",
-          timestamp: "00:24:10"
-        }
-      ],
-      summaryPoints: [
-        "Machine learning enables systems to learn from data rather than explicit programming",
-        "Supervised learning uses labeled data to map inputs to known outputs",
-        "Unsupervised learning discovers patterns in unlabeled data",
-        "Common applications include recommendations, virtual assistants, and medical diagnostics",
-        "Ongoing challenges include ethics, bias, and model interpretability"
-      ]
-    };
+    return notes;
   } catch (error) {
     console.error("Error processing video with OpenAI:", error);
     toast.error("Failed to process video. Please try again.");

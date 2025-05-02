@@ -7,6 +7,10 @@ import NoteViewer from '@/components/NoteViewer';
 import { processVideoWithOpenAI } from '@/services/openaiService';
 import { generateReferences, generateVideoReferences } from '@/services/referenceService';
 import { toast } from '@/components/ui/sonner';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -14,16 +18,31 @@ const Index = () => {
   const [processingStage, setProcessingStage] = useState('');
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [generatedNote, setGeneratedNote] = useState<any | null>(null);
+  const [openAIKey, setOpenAIKey] = useState<string>('');
+  const [showAPIKeyDialog, setShowAPIKeyDialog] = useState<boolean>(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   
-  const handleVideoSelect = async (file: File) => {
+  const handleVideoSelect = (file: File) => {
+    setSelectedFile(file);
+    setShowAPIKeyDialog(true);
+  };
+  
+  const handleProcessVideo = async () => {
+    if (!selectedFile || !openAIKey) {
+      toast.error('Please provide both a video file and an OpenAI API key.');
+      return;
+    }
+    
+    setShowAPIKeyDialog(false);
+    
     try {
       setIsProcessing(true);
       setProgress(0);
       setProcessingStage('Initializing');
-      setVideoUrl(URL.createObjectURL(file));
+      setVideoUrl(URL.createObjectURL(selectedFile));
       
       // Process the video with OpenAI
-      const noteData = await processVideoWithOpenAI(file, (progress, stage) => {
+      const noteData = await processVideoWithOpenAI(selectedFile, openAIKey, (progress, stage) => {
         setProgress(progress);
         setProcessingStage(stage);
       });
@@ -32,7 +51,7 @@ const Index = () => {
       const references = await generateReferences(noteData.content);
       
       // Generate video references
-      const videoReferences = await generateVideoReferences(URL.createObjectURL(file));
+      const videoReferences = await generateVideoReferences(URL.createObjectURL(selectedFile));
       
       // Combine all data
       setGeneratedNote({
@@ -92,6 +111,42 @@ const Index = () => {
           )}
         </div>
       </main>
+      
+      <Dialog open={showAPIKeyDialog} onOpenChange={setShowAPIKeyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter OpenAI API Key</DialogTitle>
+            <DialogDescription>
+              To process your video, we need your OpenAI API key. This key is only used for this request and is not stored.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="apiKey" className="col-span-4">
+                OpenAI API Key
+              </Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="sk-..."
+                className="col-span-4"
+                value={openAIKey}
+                onChange={(e) => setOpenAIKey(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAPIKeyDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={handleProcessVideo}
+              className="bg-noteflow-purple hover:bg-noteflow-dark-purple"
+              disabled={!openAIKey}
+            >
+              Process Video
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
       <footer className="py-6 border-t border-gray-200 bg-white">
         <div className="container text-center">
