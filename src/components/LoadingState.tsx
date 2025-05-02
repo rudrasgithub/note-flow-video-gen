@@ -36,7 +36,7 @@ const LoadingState = ({ progress, stage }: LoadingStateProps) => {
             }`}
           >
             <span>Transcribing content</span>
-            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Mostly free</Badge>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Free</Badge>
           </div>
           <div 
             className={`p-3 rounded-lg text-center text-sm font-medium relative ${
@@ -44,7 +44,7 @@ const LoadingState = ({ progress, stage }: LoadingStateProps) => {
             }`}
           >
             <span>Generating notes</span>
-            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Uses credits</Badge>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Free+</Badge>
           </div>
         </div>
       </CardContent>

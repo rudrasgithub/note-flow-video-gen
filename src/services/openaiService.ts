@@ -82,8 +82,12 @@ const transcribeAudioFree = async (audioBlob: Blob): Promise<string> => {
       const audioUrl = URL.createObjectURL(audioBlob);
       audio.src = audioUrl;
       
-      // Initialize speech recognition
-      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      // Initialize speech recognition with browser compatibility
+      const SpeechRecognition = window.SpeechRecognition || 
+                                window.webkitSpeechRecognition || 
+                                (window as any).mozSpeechRecognition || 
+                                (window as any).msSpeechRecognition;
+      
       if (!SpeechRecognition) {
         throw new Error('Speech recognition not supported in this browser');
       }
@@ -116,11 +120,8 @@ const transcribeAudioFree = async (audioBlob: Blob): Promise<string> => {
         URL.revokeObjectURL(audioUrl);
         
         if (transcript.trim() === '') {
-          // If transcript is empty, fall back to OpenAI (with user warning)
-          toast.warning('Free transcription yielded no results. Falling back to OpenAI transcription (will use credits).');
-          transcribeAudioWithOpenAI(audioBlob)
-            .then(resolve)
-            .catch(reject);
+          // If transcript is empty, try alternative free approach
+          reject(new Error('No transcript generated from free transcription'));
         } else {
           resolve(transcript);
         }
@@ -176,8 +177,101 @@ const transcribeAudioWithOpenAI = async (audioBlob: Blob): Promise<string> => {
   }
 };
 
-// Function to generate notes from transcript using OpenAI
+// Function to generate notes from transcript using free methods first, with OpenAI as fallback
 const generateNotesFromTranscript = async (transcript: string): Promise<NoteData> => {
+  try {
+    // First try to generate notes using free browser-based NLP
+    return await generateFreeNotes(transcript);
+  } catch (error) {
+    console.log("Free note generation failed, attempting fallback to OpenAI:", error);
+    // If free generation fails, fallback to OpenAI
+    toast.warning('Free note generation produced insufficient results. Falling back to OpenAI (will use credits).');
+    return await generateNotesWithOpenAI(transcript);
+  }
+};
+
+// Generate notes using browser capabilities (free)
+const generateFreeNotes = async (transcript: string): Promise<NoteData> => {
+  return new Promise((resolve, reject) => {
+    try {
+      // Basic content analysis
+      const words = transcript.split(' ');
+      
+      if (words.length < 20) {
+        throw new Error('Transcript too short for meaningful free analysis');
+      }
+      
+      // Simple title extraction (first sentence or truncated beginning)
+      const firstSentenceEnd = transcript.indexOf('.');
+      const title = firstSentenceEnd > 0 && firstSentenceEnd < 100 
+        ? transcript.substring(0, firstSentenceEnd).trim()
+        : transcript.substring(0, 50).trim() + '...';
+      
+      // Simple content summary
+      const content = transcript.length > 300 
+        ? transcript.substring(0, 300).trim() + '...' 
+        : transcript;
+        
+      // Basic section identification by paragraphs or time markers
+      const paragraphs = transcript.split(/\n\n+/);
+      const sections = paragraphs.slice(0, Math.min(6, paragraphs.length)).map((para, index) => {
+        // Estimate timestamp based on paragraph position
+        const estimatedTimeInSeconds = Math.floor((index / paragraphs.length) * 
+          (transcript.length / 15)); // rough estimate: 15 chars per second
+          
+        return {
+          title: `Section ${index + 1}`,
+          content: para.length > 500 ? para.substring(0, 500) + '...' : para,
+          timestamp: formatTimestamp(estimatedTimeInSeconds)
+        };
+      });
+      
+      // Extract key phrases as summary points
+      const summaryPoints = extractKeyPhrases(transcript, 5);
+      
+      resolve({
+        title,
+        content,
+        sections,
+        summaryPoints
+      });
+    } catch (error) {
+      console.error('Error generating free notes:', error);
+      reject(error);
+    }
+  });
+};
+
+// Helper function to extract key phrases from text
+const extractKeyPhrases = (text: string, count: number): string[] => {
+  // Simple algorithm to find potentially important sentences
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  
+  // Sort sentences by length (assuming longer sentences might contain more information)
+  const sortedSentences = [...sentences].sort((a, b) => b.length - a.length);
+  
+  // Take top N sentences and clean them up
+  return sortedSentences.slice(0, count).map(sentence => {
+    let cleaned = sentence.trim();
+    // Truncate if too long
+    if (cleaned.length > 100) {
+      cleaned = cleaned.substring(0, 97) + '...';
+    }
+    return cleaned;
+  });
+};
+
+// Format seconds to HH:MM:SS
+const formatTimestamp = (seconds: number): string => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+// Function to generate notes using OpenAI (as fallback)
+const generateNotesWithOpenAI = async (transcript: string): Promise<NoteData> => {
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -222,7 +316,7 @@ const generateNotesFromTranscript = async (transcript: string): Promise<NoteData
     
     return JSON.parse(content) as NoteData;
   } catch (error: any) {
-    console.error('Error generating notes:', error);
+    console.error('Error generating notes with OpenAI:', error);
     
     // Check for specific OpenAI error types
     if (error.status === 429) {
@@ -271,8 +365,8 @@ export const processVideoWithOpenAI = async (
       transcript = await transcribeAudioWithOpenAI(audioBlob);
     }
     
-    // Stage 4: Analyzing content with OpenAI (uses credits)
-    progressCallback(60, "Using OpenAI to analyze and summarize content (uses credits)");
+    // Stage 4: Generating notes with free methods first
+    progressCallback(60, "Generating notes using free methods");
     const notes = await generateNotesFromTranscript(transcript);
     
     // Stage 5: Finalizing
