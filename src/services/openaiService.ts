@@ -84,8 +84,18 @@ const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
     });
     
     return response.text;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error transcribing audio:', error);
+    
+    // Check for specific OpenAI error types
+    if (error.status === 429) {
+      if (error.error?.type === 'insufficient_quota') {
+        throw new Error('Your OpenAI account has reached its quota limit. Please check your billing details on OpenAI website.');
+      } else {
+        throw new Error('Too many requests to OpenAI API. Please try again later.');
+      }
+    }
+    
     throw new Error('Failed to transcribe audio content');
   }
 };
@@ -135,8 +145,18 @@ const generateNotesFromTranscript = async (transcript: string): Promise<NoteData
     }
     
     return JSON.parse(content) as NoteData;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error generating notes:', error);
+    
+    // Check for specific OpenAI error types
+    if (error.status === 429) {
+      if (error.error?.type === 'insufficient_quota') {
+        throw new Error('Your OpenAI account has reached its quota limit. Please check your billing details on OpenAI website.');
+      } else {
+        throw new Error('Too many requests to OpenAI API. Please try again later.');
+      }
+    }
+    
     throw new Error('Failed to generate notes from transcript');
   }
 };
@@ -177,9 +197,16 @@ export const processVideoWithOpenAI = async (
     progressCallback(100, "Complete!");
     
     return notes;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing video with OpenAI:", error);
-    toast.error("Failed to process video. Please try again.");
+    
+    // Provide better error message
+    if (error.message.includes('quota')) {
+      toast.error("OpenAI API quota exceeded. Please check your billing details on the OpenAI website.");
+    } else {
+      toast.error(error.message || "Failed to process video. Please try again.");
+    }
+    
     throw error;
   }
 };

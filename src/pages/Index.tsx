@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -21,10 +23,13 @@ const Index = () => {
   const [openAIKey, setOpenAIKey] = useState<string>('');
   const [showAPIKeyDialog, setShowAPIKeyDialog] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [apiError, setApiError] = useState<string | null>(null);
   
   const handleVideoSelect = (file: File) => {
     setSelectedFile(file);
     setShowAPIKeyDialog(true);
+    // Clear any previous errors
+    setApiError(null);
   };
   
   const handleProcessVideo = async () => {
@@ -40,6 +45,7 @@ const Index = () => {
       setProgress(0);
       setProcessingStage('Initializing');
       setVideoUrl(URL.createObjectURL(selectedFile));
+      setApiError(null);
       
       // Process the video with OpenAI
       const noteData = await processVideoWithOpenAI(selectedFile, openAIKey, (progress, stage) => {
@@ -61,9 +67,10 @@ const Index = () => {
       });
       
       toast.success('Notes generated successfully!');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error processing video:', error);
-      toast.error('Failed to process video. Please try again.');
+      // Set the error message for display
+      setApiError(error.message || 'Failed to process video. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -83,6 +90,16 @@ const Index = () => {
               Upload your video and get AI-powered comprehensive notes with references, timestamps, and key points in seconds.
             </p>
           </div>
+          
+          {apiError && !isProcessing && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>
+                {apiError}
+              </AlertDescription>
+            </Alert>
+          )}
           
           {!generatedNote && !isProcessing && (
             <VideoUploader onVideoSelect={handleVideoSelect} isProcessing={isProcessing} />
@@ -121,6 +138,15 @@ const Index = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {apiError && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error</AlertTitle>
+                <AlertDescription>
+                  {apiError}
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="apiKey" className="col-span-4">
                 OpenAI API Key
@@ -133,6 +159,9 @@ const Index = () => {
                 value={openAIKey}
                 onChange={(e) => setOpenAIKey(e.target.value)}
               />
+              <div className="col-span-4 text-xs text-gray-500">
+                <p>Make sure your OpenAI account has sufficient credits. Free trial accounts may have usage limitations.</p>
+              </div>
             </div>
           </div>
           <DialogFooter>
