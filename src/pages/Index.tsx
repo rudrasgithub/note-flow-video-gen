@@ -1,12 +1,105 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+
+import React, { useState } from 'react';
+import Header from '@/components/Header';
+import VideoUploader from '@/components/VideoUploader';
+import LoadingState from '@/components/LoadingState';
+import NoteViewer from '@/components/NoteViewer';
+import { processVideoWithOpenAI } from '@/services/openaiService';
+import { generateReferences, generateVideoReferences } from '@/services/referenceService';
+import { toast } from '@/components/ui/sonner';
 
 const Index = () => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [processingStage, setProcessingStage] = useState('');
+  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [generatedNote, setGeneratedNote] = useState<any | null>(null);
+  
+  const handleVideoSelect = async (file: File) => {
+    try {
+      setIsProcessing(true);
+      setProgress(0);
+      setProcessingStage('Initializing');
+      setVideoUrl(URL.createObjectURL(file));
+      
+      // Process the video with OpenAI
+      const noteData = await processVideoWithOpenAI(file, (progress, stage) => {
+        setProgress(progress);
+        setProcessingStage(stage);
+      });
+      
+      // Generate references
+      const references = await generateReferences(noteData.content);
+      
+      // Generate video references
+      const videoReferences = await generateVideoReferences(URL.createObjectURL(file));
+      
+      // Combine all data
+      setGeneratedNote({
+        ...noteData,
+        references,
+        videoReferences
+      });
+      
+      toast.success('Notes generated successfully!');
+    } catch (error) {
+      console.error('Error processing video:', error);
+      toast.error('Failed to process video. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">Welcome to Your Blank App</h1>
-        <p className="text-xl text-gray-600">Start building your amazing project here!</p>
-      </div>
+    <div className="min-h-screen flex flex-col bg-noteflow-background">
+      <Header />
+      
+      <main className="flex-1 container py-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-noteflow-purple to-noteflow-dark-purple text-transparent bg-clip-text">
+              Transform Videos into Structured Notes
+            </h1>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Upload your video and get AI-powered comprehensive notes with references, timestamps, and key points in seconds.
+            </p>
+          </div>
+          
+          {!generatedNote && !isProcessing && (
+            <VideoUploader onVideoSelect={handleVideoSelect} isProcessing={isProcessing} />
+          )}
+          
+          {isProcessing && (
+            <LoadingState progress={progress} stage={processingStage} />
+          )}
+          
+          {generatedNote && videoUrl && !isProcessing && (
+            <NoteViewer note={generatedNote} videoUrl={videoUrl} />
+          )}
+          
+          {generatedNote && !isProcessing && (
+            <div className="mt-8 text-center">
+              <button 
+                onClick={() => {
+                  setGeneratedNote(null);
+                  setVideoUrl(null);
+                }}
+                className="text-noteflow-purple hover:text-noteflow-dark-purple text-sm font-medium"
+              >
+                Process another video
+              </button>
+            </div>
+          )}
+        </div>
+      </main>
+      
+      <footer className="py-6 border-t border-gray-200 bg-white">
+        <div className="container text-center">
+          <p className="text-sm text-gray-500">
+            © 2025 NoteFlow Video Generator. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 };
