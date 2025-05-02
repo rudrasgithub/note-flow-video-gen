@@ -2,6 +2,7 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 
 interface LoadingStateProps {
   progress: number;
@@ -21,16 +22,30 @@ const LoadingState = ({ progress, stage }: LoadingStateProps) => {
           Please wait while we analyze your video and generate comprehensive notes
         </p>
         <div className="grid grid-cols-3 gap-4 w-full mt-4">
-          {['Extracting audio', 'Transcribing content', 'Generating notes'].map((step, index) => (
-            <div 
-              key={step} 
-              className={`p-3 rounded-lg text-center text-sm font-medium ${
-                progress >= (index + 1) * 33 ? 'bg-noteflow-purple text-white' : 'bg-gray-100 text-gray-500'
-              }`}
-            >
-              {step}
-            </div>
-          ))}
+          <div 
+            className={`p-3 rounded-lg text-center text-sm font-medium relative ${
+              progress >= 33 ? 'bg-noteflow-purple text-white' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            <span>Extracting audio</span>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Free</Badge>
+          </div>
+          <div 
+            className={`p-3 rounded-lg text-center text-sm font-medium relative ${
+              progress >= 66 ? 'bg-noteflow-purple text-white' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            <span>Transcribing content</span>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Mostly free</Badge>
+          </div>
+          <div 
+            className={`p-3 rounded-lg text-center text-sm font-medium relative ${
+              progress >= 90 ? 'bg-noteflow-purple text-white' : 'bg-gray-100 text-gray-500'
+            }`}
+          >
+            <span>Generating notes</span>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Uses credits</Badge>
+          </div>
         </div>
       </CardContent>
     </Card>

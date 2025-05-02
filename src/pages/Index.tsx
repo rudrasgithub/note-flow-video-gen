@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Info } from "lucide-react";
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -91,6 +91,19 @@ const Index = () => {
             </p>
           </div>
           
+          <Alert className="mb-6 border-noteflow-purple">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Credit Usage Information</AlertTitle>
+            <AlertDescription>
+              <p>We use free methods wherever possible to save your OpenAI credits:</p>
+              <ul className="list-disc pl-5 mt-2 space-y-1">
+                <li><span className="font-medium">Audio Extraction:</span> Free (browser-based)</li>
+                <li><span className="font-medium">Transcription:</span> Free (browser Speech API with OpenAI fallback)</li>
+                <li><span className="font-medium">Summarization & Analysis:</span> Uses OpenAI credits (delivers the highest quality)</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+          
           {apiError && !isProcessing && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -147,6 +160,13 @@ const Index = () => {
                 </AlertDescription>
               </Alert>
             )}
+            <Alert className="mb-2">
+              <Info className="h-4 w-4" />
+              <AlertTitle>Credit Usage Information</AlertTitle>
+              <AlertDescription>
+                <p className="text-sm">Your OpenAI credits will only be used for the final summarization step. We use free methods for audio extraction and attempt free transcription first.</p>
+              </AlertDescription>
+            </Alert>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="apiKey" className="col-span-4">
                 OpenAI API Key

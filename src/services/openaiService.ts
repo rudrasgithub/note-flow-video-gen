@@ -15,7 +15,6 @@ interface NoteData {
 }
 
 // Initialize OpenAI client with API key
-// NOTE: In a production app, this should be stored in environment variables
 let openai: OpenAI;
 
 // Helper function to extract audio from video
@@ -71,12 +70,89 @@ const extractAudioFromVideo = async (videoFile: File): Promise<Blob> => {
   });
 };
 
-// Function to transcribe audio using OpenAI
-const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
-  const formData = new FormData();
-  formData.append('file', audioBlob, 'audio.webm');
-  formData.append('model', 'whisper-1');
-  
+// Function to transcribe audio using browser's Web Speech API (free)
+const transcribeAudioFree = async (audioBlob: Blob): Promise<string> => {
+  // Use browser's SpeechRecognition API for audio transcription
+  return new Promise((resolve, reject) => {
+    try {
+      console.log("Starting free transcription...");
+      
+      // Create an audio element to play the audio
+      const audio = new Audio();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      audio.src = audioUrl;
+      
+      // Initialize speech recognition
+      const SpeechRecognition = window.SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (!SpeechRecognition) {
+        throw new Error('Speech recognition not supported in this browser');
+      }
+      
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      
+      let transcript = '';
+      
+      recognition.onresult = (event) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript + ' ';
+          }
+        }
+      };
+      
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        audio.pause();
+        URL.revokeObjectURL(audioUrl);
+        reject(new Error(`Speech recognition error: ${event.error}`));
+      };
+      
+      recognition.onend = () => {
+        console.log('Speech recognition ended');
+        audio.pause();
+        URL.revokeObjectURL(audioUrl);
+        
+        if (transcript.trim() === '') {
+          // If transcript is empty, fall back to OpenAI (with user warning)
+          toast.warning('Free transcription yielded no results. Falling back to OpenAI transcription (will use credits).');
+          transcribeAudioWithOpenAI(audioBlob)
+            .then(resolve)
+            .catch(reject);
+        } else {
+          resolve(transcript);
+        }
+      };
+      
+      // Start recognition when audio starts playing
+      audio.onplay = () => {
+        recognition.start();
+      };
+      
+      // Start audio playback
+      audio.play().catch(error => {
+        console.error('Error playing audio for transcription:', error);
+        URL.revokeObjectURL(audioUrl);
+        reject(error);
+      });
+      
+      // Stop after audio duration
+      audio.onloadedmetadata = () => {
+        setTimeout(() => {
+          recognition.stop();
+        }, audio.duration * 1000 + 1000); // Add 1 second buffer
+      };
+    } catch (error) {
+      console.error('Error in free transcription:', error);
+      reject(error);
+    }
+  });
+};
+
+// Fallback function to transcribe audio using OpenAI
+const transcribeAudioWithOpenAI = async (audioBlob: Blob): Promise<string> => {
   try {
     const response = await openai.audio.transcriptions.create({
       file: audioBlob as any as File,
@@ -85,7 +161,7 @@ const transcribeAudio = async (audioBlob: Blob): Promise<string> => {
     
     return response.text;
   } catch (error: any) {
-    console.error('Error transcribing audio:', error);
+    console.error('Error transcribing audio with OpenAI:', error);
     
     // Check for specific OpenAI error types
     if (error.status === 429) {
@@ -161,7 +237,7 @@ const generateNotesFromTranscript = async (transcript: string): Promise<NoteData
   }
 };
 
-// Main function to process video with OpenAI
+// Main function to process video
 export const processVideoWithOpenAI = async (
   videoFile: File, 
   apiKey: string,
@@ -178,16 +254,25 @@ export const processVideoWithOpenAI = async (
     progressCallback(10, "Preparing video for analysis");
     await new Promise(resolve => setTimeout(resolve, 1000));
     
-    // Stage 2: Extracting audio
+    // Stage 2: Extracting audio (free)
     progressCallback(25, "Extracting audio from video");
     const audioBlob = await extractAudioFromVideo(videoFile);
     
-    // Stage 3: Transcribing content
-    progressCallback(40, "Transcribing audio content");
-    const transcript = await transcribeAudio(audioBlob);
+    // Stage 3: Transcribing content (free when possible)
+    progressCallback(40, "Transcribing audio content (free method)");
+    let transcript;
+    try {
+      transcript = await transcribeAudioFree(audioBlob);
+      toast.success("Successfully transcribed using free method (no credits used)");
+    } catch (error) {
+      console.error("Free transcription failed, falling back to OpenAI", error);
+      progressCallback(40, "Free transcription failed, using OpenAI (uses credits)");
+      toast.warning("Free transcription failed. Falling back to OpenAI (will use credits)");
+      transcript = await transcribeAudioWithOpenAI(audioBlob);
+    }
     
-    // Stage 4: Analyzing content
-    progressCallback(60, "Analyzing content and generating notes");
+    // Stage 4: Analyzing content with OpenAI (uses credits)
+    progressCallback(60, "Using OpenAI to analyze and summarize content (uses credits)");
     const notes = await generateNotesFromTranscript(transcript);
     
     // Stage 5: Finalizing
@@ -198,7 +283,7 @@ export const processVideoWithOpenAI = async (
     
     return notes;
   } catch (error: any) {
-    console.error("Error processing video with OpenAI:", error);
+    console.error("Error processing video:", error);
     
     // Provide better error message
     if (error.message.includes('quota')) {
