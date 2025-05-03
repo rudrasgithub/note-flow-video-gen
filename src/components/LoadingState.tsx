@@ -19,7 +19,7 @@ const LoadingState = ({ progress, stage }: LoadingStateProps) => {
         <h3 className="text-xl font-medium text-center">{stage}</h3>
         <Progress value={progress} className="w-full" />
         <p className="text-sm text-gray-500 text-center">
-          Please wait while we analyze your video and generate comprehensive notes
+          Please wait while we analyze your video and generate comprehensive notes using free methods
         </p>
         <div className="grid grid-cols-3 gap-4 w-full mt-4">
           <div 
@@ -44,7 +44,7 @@ const LoadingState = ({ progress, stage }: LoadingStateProps) => {
             }`}
           >
             <span>Generating notes</span>
-            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Free+</Badge>
+            <Badge variant="outline" className="absolute -top-2 -right-2 bg-white text-xs">Free</Badge>
           </div>
         </div>
       </CardContent>
