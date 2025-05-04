@@ -114,14 +114,14 @@ export const processVideoWithOpenAI = async (
     const audioBlob = await extractAudioFromVideo(videoFile);
     
     // Stage 3: Transcribing content (free)
-    progressCallback(40, "Transcribing audio content (free method)");
+    progressCallback(40, "Transcribing audio content");
     const transcript = await transcribeAudioFree(audioBlob);
-    toast.success("Successfully transcribed using free method");
+    toast.success("Successfully transcribed content");
     
     // Stage 4: Generating notes with free methods
-    progressCallback(60, "Generating notes using free methods");
+    progressCallback(60, "Generating notes");
     const notes = await generateFreeNotes(transcript);
-    toast.success("Successfully generated notes using free method");
+    toast.success("Successfully generated notes");
     
     // Stage 5: Finalizing
     progressCallback(90, "Finalizing and formatting notes");

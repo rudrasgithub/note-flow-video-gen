@@ -7,8 +7,6 @@ import NoteViewer from '@/components/NoteViewer';
 import { processVideoWithOpenAI } from '@/services/openaiService';
 import { generateReferences, generateVideoReferences } from '@/services/referenceService';
 import { toast } from '@/components/ui/sonner';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Info } from "lucide-react";
 
 const Index = () => {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -60,25 +58,12 @@ const Index = () => {
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold mb-3 bg-gradient-to-r from-noteflow-purple to-noteflow-dark-purple text-transparent bg-clip-text">
-              Transform Videos into Structured Notes
+              ClassInsight
             </h1>
             <p className="text-lg text-gray-600 max-w-2xl mx-auto">
               Upload your video and get AI-powered comprehensive notes with references, timestamps, and key points in seconds.
             </p>
           </div>
-          
-          <Alert className="mb-6 border-noteflow-purple">
-            <Info className="h-4 w-4" />
-            <AlertTitle>100% Free Processing</AlertTitle>
-            <AlertDescription>
-              <p>We use free methods to process your videos with no API keys required:</p>
-              <ul className="list-disc pl-5 mt-2 space-y-1">
-                <li><span className="font-medium">Audio Extraction:</span> Free (browser-based)</li>
-                <li><span className="font-medium">Transcription:</span> Free (browser-based)</li>
-                <li><span className="font-medium">Summarization & Analysis:</span> Free (browser-based)</li>
-              </ul>
-            </AlertDescription>
-          </Alert>
           
           {!generatedNote && !isProcessing && (
             <VideoUploader onVideoSelect={handleVideoSelect} isProcessing={isProcessing} />
@@ -111,7 +96,7 @@ const Index = () => {
       <footer className="py-6 border-t border-gray-200 bg-white">
         <div className="container text-center">
           <p className="text-sm text-gray-500">
-            © 2025 NoteFlow Video Generator. All rights reserved.
+            © 2025 ClassInsight. All rights reserved.
           </p>
         </div>
       </footer>
